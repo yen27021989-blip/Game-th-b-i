@@ -1,80 +1,1510 @@
-if (el) {
-                    el.classList.remove('focus-center');
-                    el.classList.add('eliminated');
-                    eliminatedCards.add(currentChosenIndex);
-                }
-                currentChosenIndex = null;
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Vòng Quay Thẻ Bài Elip 3D - Khen Thưởng Học Sinh</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+    <!-- Google Fonts & FontAwesome -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Fredoka:wght@600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <style>
+        body {
+            font-family: 'Nunito', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            overflow-x: hidden;
+        }
+
+        .title-font {
+            font-family: 'Fredoka', cursive, sans-serif;
+        }
+
+        /* 3D Perspective Stage */
+        .stage-3d {
+            perspective: 1200px;
+            perspective-origin: 50% 28%;
+            transform-style: preserve-3d;
+        }
+
+        .carousel-track {
+            position: relative;
+            width: 100%;
+            height: 480px;
+            transform-style: preserve-3d;
+        }
+
+        /* Card Container - Quan trọng: overflow visible để thú cưng nhô ra ngoài */
+        .card-3d {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 190px;
+            height: 275px;
+            margin-left: -95px;
+            margin-top: -125px;
+            transform-style: preserve-3d;
+            transition: transform 0.05s linear;
+            cursor: pointer;
+            will-change: transform, opacity;
+            overflow: visible;
+        }
+
+        @media (min-width: 768px) {
+            .card-3d {
+                width: 220px;
+                height: 310px;
+                margin-left: -110px;
+                margin-top: -145px;
+            }
+            .carousel-track {
+                height: 520px;
+            }
+        }
+
+        .card-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transform-style: preserve-3d;
+            transition: transform 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border-radius: 1.5rem;
+            overflow: visible;
+        }
+
+        /* MẶT THẺ BÀI: Sử dụng backface-visibility chuẩn để chữ luôn xuôi chiều đọc */
+        .card-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1.2rem;
+            box-shadow: 0 16px 36px -8px rgba(0, 0, 0, 0.5), 0 0 18px rgba(255, 255, 255, 0.15);
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+            overflow: visible;
+        }
+
+        /* Mặt sau (Thẻ úp khi quay): Chữ xuôi từ trái sang phải */
+        .card-back {
+            transform: rotateY(0deg);
+            background: linear-gradient(145deg, #3b0764 0%, #6b21a8 50%, #be185d 100%);
+            border: 3px solid rgba(253, 224, 71, 0.6);
+        }
+
+        /* Mặt trước (Lật mở khi trúng thưởng): Chữ xuôi từ trái sang phải khi lật rotateY(180deg) */
+        .card-front {
+            transform: rotateY(180deg);
+            border: 3px solid rgba(255, 255, 255, 0.85);
+        }
+
+        .card-inner.flipped {
+            transform: rotateY(180deg);
+        }
+
+        /* 
+           HÌNH ẢNH CON VẬT NẰM VƯỢT HẲN RA NGOÀI KHUNG THẺ (EXTRUDED / FLOATING OUTSIDE)
+           Sử dụng translateZ cao để nhô về phía trước, top âm để nhô cao quá đỉnh thẻ
+        */
+        .animal-outside {
+            position: absolute;
+            top: -52px;
+            left: 50%;
+            transform: translateX(-50%) translateZ(48px);
+            width: 125px;
+            height: 125px;
+            pointer-events: none;
+            filter: drop-shadow(0 14px 14px rgba(0, 0, 0, 0.45));
+            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            z-index: 25;
+            transform-style: preserve-3d;
+        }
+
+        @media (min-width: 768px) {
+            .animal-outside {
+                top: -62px;
+                width: 145px;
+                height: 145px;
+                transform: translateX(-50%) translateZ(55px);
+            }
+        }
+
+        .card-3d:hover .animal-outside,
+        .card-3d.active-focus .animal-outside {
+            transform: translateX(-50%) translateZ(75px) translateY(-8px) scale(1.08);
+        }
+
+        /* Hiệu ứng bồng bềnh 3D cho con vật */
+        @keyframes floatAnimal {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-7px) rotate(1.5deg); }
+        }
+
+        .anim-animal {
+            animation: floatAnimal 2.8s ease-in-out infinite;
+        }
+
+        /* Nút Bắt Đầu phát sáng nhịp tim */
+        @keyframes startPulse {
+            0%, 100% {
+                box-shadow: 0 0 25px rgba(245, 158, 11, 0.7), 0 0 50px rgba(236, 72, 153, 0.5);
+                transform: scale(1);
+            }
+            50% {
+                box-shadow: 0 0 40px rgba(245, 158, 11, 0.95), 0 0 75px rgba(236, 72, 153, 0.75);
+                transform: scale(1.03);
+            }
+        }
+
+        .btn-start-glow {
+            animation: startPulse 2s infinite ease-in-out;
+        }
+
+        /* Vệt sàn Elip trong không gian 3D */
+        .ellipse-floor {
+            position: absolute;
+            left: 50%;
+            top: 56%;
+            transform: translate(-50%, -50%) rotateX(76deg);
+            border-radius: 50%;
+            border: 2px dashed rgba(253, 224, 71, 0.35);
+            pointer-events: none;
+            box-shadow: 0 0 60px rgba(236, 72, 153, 0.3), inset 0 0 40px rgba(168, 85, 247, 0.3);
+        }
+
+        /* Hologram Sheen phủ lấp lánh trên thẻ */
+        .holo-overlay {
+            position: absolute;
+            inset: 0;
+            border-radius: 1.5rem;
+            background: linear-gradient(125deg, rgba(255,255,255,0.22) 0%, transparent 40%, rgba(255,255,255,0.1) 70%, transparent 100%);
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-white min-h-screen relative flex flex-col justify-between overflow-x-hidden selection:bg-pink-500 selection:text-white">
+
+    <!-- Background Cosmic / Magical Glow -->
+    <div class="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+        <div class="absolute -top-32 -left-32 w-96 h-96 bg-purple-600/30 rounded-full blur-3xl"></div>
+        <div class="absolute top-1/3 -right-32 w-96 h-96 bg-pink-600/25 rounded-full blur-3xl"></div>
+        <div class="absolute -bottom-32 left-1/3 w-[30rem] h-[30rem] bg-indigo-600/20 rounded-full blur-3xl"></div>
+        <div class="absolute inset-0 bg-[radial-gradient(#ffffff15_1px,transparent_1px)] [background-size:24px_24px]"></div>
+    </div>
+
+    <!-- Top Navigation & Controls Bar -->
+    <header class="relative z-30 w-full px-4 py-3 sm:px-6 flex items-center justify-between backdrop-blur-md bg-slate-900/70 border-b border-purple-500/25 shadow-lg">
+        <div class="flex items-center space-x-3">
+            <div class="w-11 h-11 rounded-2xl bg-gradient-to-tr from-amber-400 via-rose-500 to-purple-600 flex items-center justify-center shadow-lg shadow-pink-500/30">
+                <i class="fa-solid fa-wand-magic-sparkles text-xl text-white"></i>
+            </div>
+            <div>
+                <h1 class="title-font text-xl sm:text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-amber-300 via-pink-300 to-purple-300 tracking-wide">
+                    VÒNG QUAY MAY MẮN 3D
+                </h1>
+                <p class="text-xs text-purple-200 hidden sm:block font-medium">Trao thưởng học sinh tích cực & hoa điểm 10</p>
+            </div>
+        </div>
+
+        <!-- Utility Buttons -->
+        <div class="flex items-center space-x-2 sm:space-x-3">
+            <!-- NÚT CÀI ĐẶT THẺ -->
+            <button id="manageBtn" class="px-3.5 py-2 rounded-xl bg-purple-900/60 hover:bg-purple-800 border border-purple-400/50 text-amber-300 hover:text-white transition flex items-center gap-2 text-sm font-bold shadow-lg shadow-purple-900/40">
+                <i class="fa-solid fa-sliders text-pink-400"></i>
+                <span class="inline">Cài Đặt Thẻ</span>
+            </button>
+            <button id="historyBtn" class="px-3 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-purple-200 hover:text-white transition flex items-center gap-1.5 text-sm font-semibold shadow">
+                <i class="fa-solid fa-trophy text-amber-400"></i>
+                <span class="hidden md:inline">Vinh danh</span>
+                <span id="historyBadge" class="bg-pink-600 text-white text-xs px-1.5 py-0.2 rounded-full font-bold ml-0.5">0</span>
+            </button>
+            <button id="soundBtn" class="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-purple-300 hover:text-white transition flex items-center gap-1.5 text-sm font-semibold">
+                <i class="fa-solid fa-volume-high text-amber-400" id="soundIcon"></i>
+                <span class="hidden md:inline" id="soundText">Bật</span>
+            </button>
+            <button id="fullscreenBtn" class="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-purple-200 hover:text-white transition text-sm" title="Toàn màn hình chiếu">
+                <i class="fa-solid fa-expand"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Student Name Input Panel -->
+    <section class="relative z-20 w-full max-w-xl mx-auto px-4 mt-2">
+        <div class="bg-slate-900/80 border border-purple-500/30 backdrop-blur-md rounded-2xl p-2.5 px-4 shadow-xl flex items-center gap-3">
+            <div class="text-amber-400 font-extrabold text-sm sm:text-base flex items-center gap-2 whitespace-nowrap">
+                <i class="fa-solid fa-graduation-cap text-lg text-pink-400"></i>
+                <span>Học sinh:</span>
+            </div>
+            <input type="text" id="studentNameInput" placeholder="Nhập tên học sinh chuẩn bị quay (VD: Gia Huy, Tuấn Kiệt...)" 
+                   class="w-full bg-slate-800/90 text-white text-sm sm:text-base px-3 py-1.5 rounded-xl border border-slate-700 focus:outline-none focus:border-amber-400 transition placeholder-slate-400 font-bold" />
+            <button id="randomStudentBtn" title="Chọn ngẫu nhiên học sinh" class="text-xs bg-purple-900/60 hover:bg-purple-800 border border-purple-500/40 text-purple-200 px-3 py-1.5 rounded-xl whitespace-nowrap font-bold transition flex items-center gap-1">
+                <i class="fa-solid fa-dice text-amber-400"></i> Gợi ý
+            </button>
+        </div>
+    </section>
+
+    <!-- Main 3D Carousel Stage -->
+    <main class="relative z-10 flex-1 flex flex-col items-center justify-center w-full px-2 py-1 overflow-hidden select-none">
+        <!-- Spotlight indicator on top center -->
+        <div class="text-center mb-1 flex items-center gap-2 px-4 py-1 bg-amber-500/20 rounded-full border border-amber-400/40 text-amber-300 text-xs font-black tracking-wider uppercase animate-pulse">
+            <i class="fa-solid fa-arrow-down-long text-amber-400"></i> THẺ TRÚNG THƯỞNG TẠI ĐÂY <i class="fa-solid fa-arrow-down-long text-amber-400"></i>
+        </div>
+
+        <div class="w-full max-w-5xl stage-3d relative flex items-center justify-center">
+            <!-- 3D Elliptical Floor Halo -->
+            <div id="ellipseFloor" class="ellipse-floor w-[88%] max-w-[760px] h-[340px]"></div>
+
+            <!-- Card Carousel Track -->
+            <div id="carouselTrack" class="carousel-track">
+                <!-- Cards with Outside 3D Cute Animals will be dynamically injected here -->
+            </div>
+        </div>
+
+        <!-- Hint Prompt -->
+        <div class="text-xs text-purple-200/80 mt-1 flex items-center gap-2 font-medium">
+            <i class="fa-solid fa-hand-pointer text-pink-400"></i> Kéo vuốt qua lại để ngắm thú cưng hoặc bấm nút quay ngay!
+        </div>
+    </main>
+
+    <!-- Bottom Controls & BẮT ĐẦU BUTTON -->
+    <footer class="relative z-20 w-full px-4 pb-6 pt-2 flex flex-col items-center justify-center">
+        <div class="flex items-center gap-4">
+            <!-- NÚT BẮT ĐẦU QUAY THƯỞNG -->
+            <button id="spinBtn" class="btn-start-glow px-9 sm:px-14 py-4 rounded-3xl bg-gradient-to-r from-amber-400 via-rose-500 to-purple-600 text-white font-black text-xl sm:text-2xl tracking-wider shadow-2xl hover:brightness-110 active:scale-95 transition-all duration-200 border-2 border-amber-300 flex items-center gap-3.5">
+                <i class="fa-solid fa-play text-2xl sm:text-3xl text-amber-200 animate-bounce"></i>
+                <span class="drop-shadow-lg tracking-wide uppercase">BẮT ĐẦU</span>
+                <i class="fa-solid fa-sparkles text-amber-300"></i>
+            </button>
+        </div>
+        <p class="text-xs text-slate-400 mt-2 text-center font-medium">Nhấn Space hoặc Click "BẮT ĐẦU" • Con vật 3D nhô ra ngoài sinh động</p>
+    </footer>
+
+    <!-- MODAL: KẾT QUẢ THƯỞNG LẬT MỞ (Winner Reveal Modal) -->
+    <div id="rewardModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md hidden opacity-0 transition-opacity duration-300">
+        <div class="relative w-full max-w-md bg-gradient-to-b from-slate-900 to-purple-950 border-2 border-amber-400/80 rounded-3xl p-6 sm:p-8 text-center shadow-2xl shadow-purple-600/50 transform scale-90 transition-transform duration-300 overflow-visible" id="rewardModalContent">
+            <!-- Close Button -->
+            <button id="closeRewardModalBtn" class="absolute top-4 right-4 w-9 h-9 rounded-full bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 flex items-center justify-center border border-slate-600 z-30">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+
+            <!-- Winner Badge -->
+            <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-400/20 border border-amber-400 text-amber-300 font-black text-xs sm:text-sm uppercase tracking-widest mb-3">
+                <i class="fa-solid fa-crown text-amber-400"></i> Chúc Mừng Chiến Thắng!
+            </div>
+
+            <!-- Student Name Display (Chữ luôn đọc từ trái sang phải) -->
+            <h3 id="winnerStudentName" class="text-xl sm:text-2xl font-black text-pink-300 mb-4 tracking-wide">Học Sinh Xuất Sắc</h3>
+
+            <!-- Big Flip Card in Modal with Animal Pop-out outside -->
+            <div class="w-52 h-72 sm:w-60 sm:h-80 mx-auto my-3 [perspective:1000px] relative overflow-visible">
+                <!-- Con vật nhô hẳn ra ngoài thẻ trong Modal -->
+                <div id="modalAnimalContainer" class="absolute -top-14 left-1/2 -translate-x-1/2 w-32 h-32 sm:w-36 sm:h-36 z-30 pointer-events-none drop-shadow-2xl anim-animal">
+                    <!-- SVG will be placed here -->
+                </div>
+
+                <div id="modalFlipCard" class="relative w-full h-full [transform-style:preserve-3d] transition-transform duration-1000 rounded-3xl shadow-2xl">
+                    <!-- Front face (Chữ thuận chiều từ trái sang phải) -->
+                    <div id="modalCardFront" class="absolute inset-0 rounded-3xl p-5 flex flex-col items-center justify-between text-white border-4 border-amber-300 bg-gradient-to-br from-amber-400 to-orange-600 shadow-2xl">
+                        <div class="text-xs font-black uppercase tracking-widest px-3 py-1 bg-black/25 rounded-full mt-10">
+                            ★ PHẦN THƯỞNG XỨNG ĐÁNG ★
+                        </div>
+                        <div class="w-full text-center my-auto px-2">
+                            <h4 id="modalRewardTitle" class="title-font text-xl sm:text-2xl font-black text-white leading-tight drop-shadow-md mb-2">Tên Thưởng</h4>
+                            <p id="modalRewardDesc" class="text-xs sm:text-sm text-yellow-100 font-semibold drop-shadow">Lời khen ngợi và động viên</p>
+                        </div>
+                        <div class="w-full text-center">
+                            <span class="text-[11px] bg-white/25 px-3 py-0.5 rounded-full font-bold">Xuất Sắc • Xứng Đáng</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex items-center justify-center gap-3 mt-4">
+                <button id="saveHistoryBtn" class="px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-400 to-pink-500 hover:from-amber-500 hover:to-pink-600 text-white font-black text-base shadow-lg transition flex items-center gap-2 border border-yellow-200">
+                    <i class="fa-solid fa-circle-check"></i> Tiếp Tục Lượt Mới
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: CÀI ĐẶT THẺ & PHẦN THƯỞNG (Reward Management) -->
+    <div id="manageModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md hidden opacity-0 transition-opacity duration-300">
+        <div class="relative w-full max-w-2xl bg-slate-900 border border-purple-500/40 rounded-3xl p-5 sm:p-6 text-white shadow-2xl max-h-[90vh] flex flex-col">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-pink-500/20 text-pink-400 flex items-center justify-center border border-pink-500/30 text-lg">
+                        <i class="fa-solid fa-sliders"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-black text-lg text-white">Cài Đặt Thẻ & Phần Thưởng</h3>
+                        <p class="text-xs text-slate-400">Chọn con vật 3D ngoài thẻ, đổi phần thưởng hoặc tải ảnh riêng</p>
+                    </div>
+                </div>
+                <button id="closeManageModalBtn" class="text-slate-400 hover:text-white p-1 text-xl">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Reward Items List -->
+            <div id="rewardListContainer" class="flex-1 overflow-y-auto my-3 space-y-2.5 pr-1">
+                <!-- Dynamically generated list items -->
+            </div>
+
+            <!-- Add New Reward Form -->
+            <form id="addRewardForm" class="p-3 bg-slate-800/80 border border-slate-700 rounded-2xl flex flex-col gap-2.5">
+                <div class="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                    <i class="fa-solid fa-plus-circle"></i> Thêm Thẻ Mới Vào Vòng Quay:
+                </div>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <input type="text" id="newRewardTitle" placeholder="Tên phần thưởng (VD: Bút Máy Điểm 10...)" class="w-full px-3 py-2 bg-slate-900 rounded-xl border border-slate-600 text-sm focus:outline-none focus:border-pink-500 text-white font-bold" required>
+                    <input type="text" id="newRewardDesc" placeholder="Lời chúc (VD: Chăm chỉ học tập nhé!)" class="w-full px-3 py-2 bg-slate-900 rounded-xl border border-slate-600 text-xs focus:outline-none focus:border-pink-500 text-white">
+                </div>
+
+                <div class="flex flex-wrap gap-2 items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <label class="text-xs text-slate-300 font-semibold">Con vật 3D:</label>
+                        <select id="newRewardAnimal" class="px-2.5 py-1.5 bg-slate-900 rounded-xl border border-slate-600 text-xs text-amber-300 font-bold focus:outline-none">
+                            <option value="cat">Mèo Kitty 3D 🐱</option>
+                            <option value="corgi">Chó Corgi 3D 🐶</option>
+                            <option value="panda">Gấu Trúc 3D 🐼</option>
+                            <option value="bunny">Thỏ Hồng 3D 🐰</option>
+                            <option value="fox">Cáo Vàng 3D 🦊</option>
+                            <option value="dino">Khủng Long 3D 🦖</option>
+                            <option value="penguin">Chim Cánh Cụt 3D 🐧</option>
+                            <option value="piggy">Heo Hồng 3D 🐷</option>
+                            <option value="lion">Sư Tử Nhỏ 3D 🦁</option>
+                            <option value="duck">Vịt Vàng 3D 🐥</option>
+                        </select>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <label class="text-xs text-slate-300 font-semibold">Màu thẻ:</label>
+                        <select id="newRewardColor" class="px-2.5 py-1.5 bg-slate-900 rounded-xl border border-slate-600 text-xs text-slate-200 focus:outline-none">
+                            <option value="from-amber-400 to-orange-600">Vàng Cam Rực Rỡ</option>
+                            <option value="from-pink-500 to-rose-600">Hồng Dễ Thương</option>
+                            <option value="from-blue-500 to-indigo-600">Xanh Năng Động</option>
+                            <option value="from-emerald-400 to-teal-600">Xanh Ngọc May Mắn</option>
+                            <option value="from-purple-500 to-indigo-700">Tím Huyền Bí</option>
+                            <option value="from-red-500 to-rose-700">Đỏ Chiến Thắng</option>
+                        </select>
+                    </div>
+
+                    <!-- Upload custom image button -->
+                    <label class="cursor-pointer px-3 py-1.5 bg-slate-700 hover:bg-slate-600 border border-slate-500 rounded-xl text-xs font-semibold text-purple-200 flex items-center gap-1.5 transition">
+                        <i class="fa-solid fa-camera text-amber-300"></i>
+                        <span id="customImageText">Tải ảnh riêng</span>
+                        <input type="file" id="customImageInput" accept="image/*" class="hidden">
+                    </label>
+
+                    <button type="submit" class="px-4 py-2 bg-gradient-to-r from-pink-600 to-purple-600 hover:brightness-110 text-white font-black text-xs rounded-xl transition flex items-center gap-1.5 shadow">
+                        <i class="fa-solid fa-plus"></i> Thêm Thẻ
+                    </button>
+                </div>
+            </form>
+
+            <div class="mt-3 pt-2.5 border-t border-slate-800 flex justify-between items-center text-xs text-slate-400">
+                <span>* Con vật 3D sẽ nhô ra phía trên thẻ bài trong không gian 3 chiều.</span>
+                <button id="resetDefaultsBtn" class="text-amber-400 hover:underline font-bold">
+                    <i class="fa-solid fa-arrow-rotate-left mr-1"></i>Khôi phục thẻ mẫu
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: LỊCH SỬ VINH DANH (History List) -->
+    <div id="historyModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md hidden opacity-0 transition-opacity duration-300">
+        <div class="relative w-full max-w-lg bg-slate-900 border border-amber-500/40 rounded-3xl p-5 sm:p-6 text-white shadow-2xl max-h-[90vh] flex flex-col">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
+                        <i class="fa-solid fa-trophy"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-black text-lg text-white">Bảng Vinh Danh Học Sinh</h3>
+                        <p class="text-xs text-slate-400">Danh sách các phần thưởng đã trao</p>
+                    </div>
+                </div>
+                <button id="closeHistoryModalBtn" class="text-slate-400 hover:text-white p-1 text-xl">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div id="historyListContainer" class="flex-1 overflow-y-auto my-4 space-y-2 pr-1">
+                <p class="text-slate-500 text-center py-8 text-sm">Chưa có lượt nhận thưởng nào. Hãy bấm BẮT ĐẦU!</p>
+            </div>
+
+            <div class="pt-3 border-t border-slate-800 flex items-center justify-between">
+                <button id="clearHistoryBtn" class="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 font-semibold">
+                    <i class="fa-solid fa-trash-can"></i> Xóa lịch sử
+                </button>
+                <button id="copyHistoryBtn" class="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-purple-300 text-xs font-bold transition flex items-center gap-1.5 border border-slate-700">
+                    <i class="fa-solid fa-copy"></i> Sao chép danh sách
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-6 right-6 z-50 transform translate-y-20 opacity-0 transition-all duration-300 bg-slate-900 border border-pink-500/50 text-white px-4 py-2.5 rounded-xl shadow-2xl text-sm font-bold flex items-center gap-2">
+        <i class="fa-solid fa-circle-check text-pink-400"></i>
+        <span id="toastMsg">Thông báo</span>
+    </div>
+
+    <script>
+        /* ==========================================================================
+           BỘ SƯU TẬP 10 CON VẬT ĐÁNG YÊU 3D CHIBI (SVG Vector nhiều lớp, đổ bóng 3D)
+           Được thiết kế để nhô ra phía trên và bên ngoài thẻ bài
+           ========================================================================== */
+        const ANIMAL_SVGS = {
+            cat: `
+            <svg viewBox="0 0 120 120" class="w-full h-full drop-shadow-2xl overflow-visible">
+                <defs>
+                    <radialGradient id="catHead" cx="40%" cy="40%" r="60%">
+                        <stop offset="0%" stop-color="#fed7aa" />
+                        <stop offset="100%" stop-color="#ea580c" />
+                    </radialGradient>
+                    <linearGradient id="catEar" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#f43f5e" />
+                        <stop offset="100%" stop-color="#fb7185" />
+                    </linearGradient>
+                </defs>
+                <!-- Tai trái & phải nhô cao -->
+                <polygon points="26,45 15,10 48,26" fill="#ea580c" stroke="#9a3412" stroke-width="2" stroke-linejoin="round"/>
+                <polygon points="28,40 22,18 44,28" fill="url(#catEar)"/>
+                <polygon points="94,45 105,10 72,26" fill="#ea580c" stroke="#9a3412" stroke-width="2" stroke-linejoin="round"/>
+                <polygon points="92,40 98,18 76,28" fill="url(#catEar)"/>
+                <!-- Đầu mèo 3D -->
+                <circle cx="60" cy="62" r="44" fill="url(#catHead)" stroke="#c2410c" stroke-width="3"/>
+                <!-- Mắt to tròn long lanh -->
+                <ellipse cx="44" cy="56" rx="8" ry="11" fill="#0f172a"/>
+                <circle cx="42" cy="52" r="3.5" fill="#ffffff"/>
+                <ellipse cx="76" cy="56" rx="8" ry="11" fill="#0f172a"/>
+                <circle cx="74" cy="52" r="3.5" fill="#ffffff"/>
+                <!-- Má hồng đào -->
+                <circle cx="34" cy="68" r="7" fill="#fb7185" opacity="0.6"/>
+                <circle cx="86" cy="68" r="7" fill="#fb7185" opacity="0.6"/>
+                <!-- Mũi & Miệng cười -->
+                <polygon points="60,65 56,61 64,61" fill="#be123c"/>
+                <path d="M53,70 Q60,76 60,69 Q60,76 67,70" fill="none" stroke="#7c2d12" stroke-width="2.5" stroke-linecap="round"/>
+                <!-- Râu mèo -->
+                <line x1="20" y1="62" x2="36" y2="64" stroke="#7c2d12" stroke-width="2" stroke-linecap="round"/>
+                <line x1="18" y1="71" x2="35" y2="70" stroke="#7c2d12" stroke-width="2" stroke-linecap="round"/>
+                <line x1="100" y1="62" x2="84" y2="64" stroke="#7c2d12" stroke-width="2" stroke-linecap="round"/>
+                <line x1="102" y1="71" x2="85" y2="70" stroke="#7c2d12" stroke-width="2" stroke-linecap="round"/>
+                <!-- Hai bàn chân bám mép thẻ bài -->
+                <ellipse cx="40" cy="102" rx="11" ry="8" fill="#ffedd5" stroke="#ea580c" stroke-width="2"/>
+                <ellipse cx="80" cy="102" rx="11" ry="8" fill="#ffedd5" stroke="#ea580c" stroke-width="2"/>
+            </svg>`,
+
+            corgi: `
+            <svg viewBox="0 0 120 120" class="w-full h-full drop-shadow-2xl overflow-visible">
+                <defs>
+                    <radialGradient id="corgiHead" cx="40%" cy="40%" r="60%">
+                        <stop offset="0%" stop-color="#fed7aa" />
+                        <stop offset="100%" stop-color="#d97706" />
+                    </radialGradient>
+                </defs>
+                <!-- Tai to đặc trưng corgi -->
+                <polygon points="20,50 8,12 45,26" fill="#b45309" stroke="#78350f" stroke-width="2"/>
+                <polygon points="22,46 14,20 40,28" fill="#fda4af"/>
+                <polygon points="100,50 112,12 75,26" fill="#b45309" stroke="#78350f" stroke-width="2"/>
+                <polygon points="98,46 106,20 80,28" fill="#fda4af"/>
+                <!-- Đầu -->
+                <circle cx="60" cy="62" r="44" fill="url(#corgiHead)" stroke="#b45309" stroke-width="2.5"/>
+                <!-- Vệt trắng giữa mặt -->
+                <path d="M52,22 Q60,45 50,78 L70,78 Q60,45 68,22 Z" fill="#ffffff"/>
+                <!-- Mắt -->
+                <circle cx="42" cy="56" r="7.5" fill="#1e293b"/>
+                <circle cx="40" cy="53" r="3" fill="#ffffff"/>
+                <circle cx="78" cy="56" r="7.5" fill="#1e293b"/>
+                <circle cx="76" cy="53" r="3" fill="#ffffff"/>
+                <!-- Mũi đen -->
+                <ellipse cx="60" cy="67" rx="6" ry="4.5" fill="#0f172a"/>
+                <!-- Lưỡi thè đáng yêu -->
+                <path d="M55,75 Q60,90 65,75 Z" fill="#f43f5e" stroke="#be123c" stroke-width="1.5"/>
+                <!-- Chân trước ôm thẻ -->
+                <ellipse cx="42" cy="103" rx="10" ry="7" fill="#ffffff" stroke="#d97706" stroke-width="2"/>
+                <ellipse cx="78" cy="103" rx="10" ry="7" fill="#ffffff" stroke="#d97706" stroke-width="2"/>
+            </svg>`,
+
+            panda: `
+            <svg viewBox="0 0 120 120" class="w-full h-full drop-shadow-2xl overflow-visible">
+                <!-- Tai đen tròn -->
+                <circle cx="25" cy="28" r="16" fill="#0f172a"/>
+                <circle cx="95" cy="28" r="16" fill="#0f172a"/>
+                <!-- Đầu gấu trúc trắng 3D -->
+                <circle cx="60" cy="62" r="44" fill="#f8fafc" stroke="#cbd5e1" stroke-width="3"/>
+                <!-- Đốm mắt đen nghiêng -->
+                <ellipse cx="42" cy="56" rx="14" ry="11" fill="#0f172a" transform="rotate(-15 42 56)"/>
+                <circle cx="43" cy="54" r="5" fill="#ffffff"/>
+                <circle cx="44" cy="53" r="2" fill="#0f172a"/>
+                <ellipse cx="78" cy="56" rx="14" ry="11" fill="#0f172a" transform="rotate(15 78 56)"/>
+                <circle cx="77" cy="54" r="5" fill="#ffffff"/>
+                <circle cx="76" cy="53" r="2" fill="#0f172a"/>
+                <!-- Má hồng -->
+                <circle cx="30" cy="72" r="6" fill="#f472b6" opacity="0.6"/>
+                <circle cx="90" cy="72" r="6" fill="#f472b6" opacity="0.6"/>
+                <!-- Mũi & miệng -->
+                <ellipse cx="60" cy="67" rx="6" ry="4" fill="#0f172a"/>
+                <path d="M55,73 Q60,78 65,73" fill="none" stroke="#0f172a" stroke-width="2.5" stroke-linecap="round"/>
+                <!-- Tay gấu trúc ôm mép -->
+                <circle cx="38" cy="102" r="10" fill="#0f172a"/>
+                <circle cx="82" cy="102" r="10" fill="#0f172a"/>
+            </svg>`,
+
+            bunny: `
+            <svg viewBox="0 0 120 120" class="w-full h-full drop-shadow-2xl overflow-visible">
+                <!-- Tai thỏ dài dựng cao -->
+                <ellipse cx="40" cy="16" rx="11" ry="26" fill="#ffffff" stroke="#fbcfe8" stroke-width="2.5"/>
+                <ellipse cx="40" cy="17" rx="6" ry="18" fill="#f472b6"/>
+                <ellipse cx="80" cy="16" rx="11" ry="26" fill="#ffffff" stroke="#fbcfe8" stroke-width="2.5"/>
+                <ellipse cx="80" cy="17" rx="6" ry="18" fill="#f472b6"/>
+                <!-- Đầu tròn màu hồng phấn -->
+                <circle cx="60" cy="64" r="43" fill="#fff1f2" stroke="#f43f5e" stroke-width="2.5"/>
+                <!-- Mắt long lanh màu tím hạt dẻ -->
+                <circle cx="43" cy="58" r="7" fill="#831843"/>
+                <circle cx="41" cy="55" r="3" fill="#ffffff"/>
+                <circle cx="77" cy="58" r="7" fill="#831843"/>
+                <circle cx="75" cy="55" r="3" fill="#ffffff"/>
+                <!-- Má hồng đậm -->
+                <circle cx="32" cy="70" r="7" fill="#fb7185" opacity="0.7"/>
+                <circle cx="88" cy="70" r="7" fill="#fb7185" opacity="0.7"/>
+                <!-- Mũi miệng chữ Y -->
+                <polygon points="60,66 57,63 63,63" fill="#f43f5e"/>
+                <path d="M56,71 Q60,75 64,71" fill="none" stroke="#be123c" stroke-width="2" stroke-linecap="round"/>
+                <!-- Chân nhỏ bám thẻ -->
+                <ellipse cx="42" cy="104" rx="9" ry="6.5" fill="#ffffff" stroke="#fda4af" stroke-width="2"/>
+                <ellipse cx="78" cy="104" rx="9" ry="6.5" fill="#ffffff" stroke="#fda4af" stroke-width="2"/>
+            </svg>`,
+
+            fox: `
+            <svg viewBox="0 0 120 120" class="w-full h-full drop-shadow-2xl overflow-visible">
+                <!-- Tai cáo nhọn -->
+                <polygon points="26,45 10,12 50,26" fill="#ea580c"/>
+                <polygon points="28,40 18,20 44,28" fill="#1e293b"/>
+                <polygon points="94,45 110,12 70,26" fill="#ea580c"/>
+                <polygon points="92,40 102,20 76,28" fill="#1e293b"/>
+                <!-- Mặt cáo -->
+                <circle cx="60" cy="62" r="43" fill="#ea580c" stroke="#c2410c" stroke-width="2"/>
+                <!-- Má lông trắng nhọn -->
+                <path d="M22,65 Q35,82 60,86 Q85,82 98,65 Q85,55 60,70 Q35,55 22,65 Z" fill="#ffffff"/>
+                <!-- Mắt cáo sắc sảo lanh lợi -->
+                <ellipse cx="42" cy="56" rx="7" ry="9" fill="#0f172a"/>
+                <circle cx="40" cy="53" r="3" fill="#ffffff"/>
+                <ellipse cx="78" cy="56" rx="7" ry="9" fill="#0f172a"/>
+                <circle cx="76" cy="53" r="3" fill="#ffffff"/>
+                <!-- Mũi đen nhỏ -->
+                <circle cx="60" cy="74" r="4.5" fill="#0f172a"/>
+                <!-- Bàn chân ôm thẻ -->
+                <circle cx="42" cy="103" r="8" fill="#ffffff" stroke="#ea580c" stroke-width="2"/>
+                <circle cx="78" cy="103" r="8" fill="#ffffff" stroke="#ea580c" stroke-width="2"/>
+            </svg>`,
+
+            dino: `
+            <svg viewBox="0 0 120 120" class="w-full h-full drop-shadow-2xl overflow-visible">
+                <!-- Gai lưng màu cam nổi bật -->
+                <polygon points="36,25 44,8 52,25" fill="#f97316"/>
+                <polygon points="56,22 64,6 72,22" fill="#f97316"/>
+                <polygon points="76,26 84,10 92,26" fill="#f97316"/>
+                <!-- Đầu khủng long xanh mạ -->
+                <circle cx="60" cy="63" r="44" fill="#22c55e" stroke="#15803d" stroke-width="3"/>
+                <!-- Bụng / cằm màu vàng chanh -->
+                <ellipse cx="60" cy="84" rx="26" ry="16" fill="#fef08a"/>
+                <!-- Mắt to tròn -->
+                <circle cx="44" cy="52" r="8.5" fill="#0f172a"/>
+                <circle cx="42" cy="49" r="4" fill="#ffffff"/>
+                <circle cx="76" cy="52" r="8.5" fill="#0f172a"/>
+                <circle cx="74" cy="49" r="4" fill="#ffffff"/>
+                <!-- Lỗ mũi dễ thương -->
+                <circle cx="54" cy="66" r="2.5" fill="#166534"/>
+                <circle cx="66" cy="66" r="2.5" fill="#166534"/>
+                <!-- Răng nanh nhỏ -->
+                <polygon points="52,74 55,79 58,74" fill="#ffffff"/>
+                <polygon points="62,74 65,79 68,74" fill="#ffffff"/>
+                <!-- Tay dino bám mép -->
+                <ellipse cx="40" cy="103" rx="8" ry="6" fill="#16a34a"/>
+                <ellipse cx="80" cy="103" rx="8" ry="6" fill="#16a34a"/>
+            </svg>`,
+
+            penguin: `
+            <svg viewBox="0 0 120 120" class="w-full h-full drop-shadow-2xl overflow-visible">
+                <!-- Thân chim cánh cụt màu xanh than -->
+                <ellipse cx="60" cy="64" rx="43" ry="46" fill="#0f172a" stroke="#334155" stroke-width="2"/>
+                <!-- Bụng trắng hình trái tim ngược -->
+                <ellipse cx="60" cy="68" rx="30" ry="34" fill="#ffffff"/>
+                <!-- Mắt -->
+                <circle cx="45" cy="52" r="6" fill="#0f172a"/>
+                <circle cx="43" cy="50" r="2.5" fill="#ffffff"/>
+                <circle cx="75" cy="52" r="6" fill="#0f172a"/>
+                <circle cx="73" cy="50" r="2.5" fill="#ffffff"/>
+                <!-- Má ửng hồng -->
+                <circle cx="36" cy="62" r="6" fill="#f43f5e" opacity="0.6"/>
+                <circle cx="84" cy="62" r="6" fill="#f43f5e" opacity="0.6"/>
+                <!-- Mỏ màu cam tươi -->
+                <polygon points="60,65 52,58 68,58" fill="#f59e0b" stroke="#d97706" stroke-width="1.5"/>
+                <!-- Cánh vỗ hai bên -->
+                <ellipse cx="18" cy="68" rx="8" ry="16" fill="#0f172a" transform="rotate(20 18 68)"/>
+                <ellipse cx="102" cy="68" rx="8" ry="16" fill="#0f172a" transform="rotate(-20 102 68)"/>
+                <!-- Chân cam bám mép thẻ -->
+                <ellipse cx="44" cy="104" rx="9" ry="6" fill="#f59e0b"/>
+                <ellipse cx="76" cy="104" rx="9" ry="6" fill="#f59e0b"/>
+            </svg>`,
+
+            piggy: `
+            <svg viewBox="0 0 120 120" class="w-full h-full drop-shadow-2xl overflow-visible">
+                <!-- Tai heo cụp -->
+                <polygon points="25,40 16,16 44,22" fill="#f472b6" stroke="#db2777" stroke-width="2"/>
+                <polygon points="95,40 104,16 76,22" fill="#f472b6" stroke="#db2777" stroke-width="2"/>
+                <!-- Đầu heo tròn mũm mĩm -->
+                <circle cx="60" cy="63" r="44" fill="#fbcfe8" stroke="#f472b6" stroke-width="3"/>
+                <!-- Mắt tròn xoe -->
+                <circle cx="43" cy="54" r="6.5" fill="#0f172a"/>
+                <circle cx="41" cy="51" r="2.5" fill="#ffffff"/>
+                <circle cx="77" cy="54" r="6.5" fill="#0f172a"/>
+                <circle cx="75" cy="51" r="2.5" fill="#ffffff"/>
+                <!-- Má hồng xoắn -->
+                <circle cx="31" cy="66" r="7" fill="#fb7185" opacity="0.6"/>
+                <circle cx="89" cy="66" r="7" fill="#fb7185" opacity="0.6"/>
+                <!-- Mũi heo to đặc trưng -->
+                <ellipse cx="60" cy="68" rx="16" ry="11" fill="#f472b6" stroke="#db2777" stroke-width="2"/>
+                <ellipse cx="54" cy="68" rx="3.5" ry="5" fill="#831843"/>
+                <ellipse cx="66" cy="68" rx="3.5" ry="5" fill="#831843"/>
+                <!-- Chân bám mép -->
+                <ellipse cx="42" cy="103" rx="9" ry="6" fill="#f472b6"/>
+                <ellipse cx="78" cy="103" rx="9" ry="6" fill="#f472b6"/>
+            </svg>`,
+
+            lion: `
+            <svg viewBox="0 0 120 120" class="w-full h-full drop-shadow-2xl overflow-visible">
+                <!-- Bờm sư tử xoè tròn -->
+                <circle cx="60" cy="60" r="48" fill="#d97706" stroke="#92400e" stroke-width="2.5"/>
+                <!-- Tai nhỏ -->
+                <circle cx="28" cy="30" r="11" fill="#f59e0b"/>
+                <circle cx="28" cy="30" r="6" fill="#fef3c7"/>
+                <circle cx="92" cy="30" r="11" fill="#f59e0b"/>
+                <circle cx="92" cy="30" r="6" fill="#fef3c7"/>
+                <!-- Khuôn mặt sư tử -->
+                <circle cx="60" cy="63" r="36" fill="#fcd34d" stroke="#f59e0b" stroke-width="2"/>
+                <!-- Mắt -->
+                <circle cx="46" cy="57" r="6.5" fill="#0f172a"/>
+                <circle cx="44" cy="54" r="2.5" fill="#ffffff"/>
+                <circle cx="74" cy="57" r="6.5" fill="#0f172a"/>
+                <circle cx="72" cy="54" r="2.5" fill="#ffffff"/>
+                <!-- Mũi nâu tam giác -->
+                <polygon points="60,67 55,62 65,62" fill="#78350f"/>
+                <path d="M54,71 Q60,76 66,71" fill="none" stroke="#78350f" stroke-width="2" stroke-linecap="round"/>
+                <!-- Chân bám thẻ -->
+                <circle cx="42" cy="102" r="8" fill="#fcd34d" stroke="#d97706" stroke-width="2"/>
+                <circle cx="78" cy="102" r="8" fill="#fcd34d" stroke="#d97706" stroke-width="2"/>
+            </svg>`,
+
+            duck: `
+            <svg viewBox="0 0 120 120" class="w-full h-full drop-shadow-2xl overflow-visible">
+                <!-- Chỏm tóc vịt ngộ nghĩnh trên đỉnh -->
+                <path d="M60,22 Q65,8 70,18 Q75,10 76,24" fill="none" stroke="#eab308" stroke-width="4" stroke-linecap="round"/>
+                <!-- Đầu vịt vàng tròn xoe 3D -->
+                <circle cx="60" cy="63" r="44" fill="#facc15" stroke="#ca8a04" stroke-width="3"/>
+                <!-- Mắt to chớp chớp -->
+                <circle cx="44" cy="54" r="7.5" fill="#0f172a"/>
+                <circle cx="42" cy="51" r="3.5" fill="#ffffff"/>
+                <circle cx="76" cy="54" r="7.5" fill="#0f172a"/>
+                <circle cx="74" cy="51" r="3.5" fill="#ffffff"/>
+                <!-- Má phấn hồng -->
+                <circle cx="32" cy="66" r="7" fill="#fb7185" opacity="0.6"/>
+                <circle cx="88" cy="66" r="7" fill="#fb7185" opacity="0.6"/>
+                <!-- Mỏ vịt bẹt cam bóng -->
+                <ellipse cx="60" cy="69" rx="14" ry="8" fill="#f97316" stroke="#ea580c" stroke-width="2"/>
+                <!-- Đôi cánh nhỏ bám mép -->
+                <ellipse cx="38" cy="102" rx="9" ry="6" fill="#facc15" stroke="#ca8a04" stroke-width="2"/>
+                <ellipse cx="82" cy="102" rx="9" ry="6" fill="#facc15" stroke="#ca8a04" stroke-width="2"/>
+            </svg>`
+        };
+
+        /* ==========================================================================
+           SOUND SYNTHESIS ENGINE (Web Audio API - Tự tạo âm thanh)
+           ========================================================================== */
+        class SoundEngine {
+            constructor() {
+                this.enabled = true;
+                this.audioCtx = null;
             }
 
-            // Chia đều lại các thẻ còn lại trên elip
-            updateCardsOnEllipse(currentBaseAngle);
+            init() {
+                if (!this.audioCtx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.audioCtx = new AudioContext();
+                }
+                if (this.audioCtx.state === 'suspended') {
+                    this.audioCtx.resume();
+                }
+            }
 
-            isAnimating = false;
-            startBtn.disabled = false;
+            playTick() {
+                if (!this.enabled) return;
+                try {
+                    this.init();
+                    const osc = this.audioCtx.createOscillator();
+                    const gain = this.audioCtx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(520, this.audioCtx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(140, this.audioCtx.currentTime + 0.035);
+                    
+                    gain.gain.setValueAtTime(0.14, this.audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.audioCtx.currentTime + 0.035);
+                    
+                    osc.connect(gain);
+                    gain.connect(this.audioCtx.destination);
+                    osc.start();
+                    osc.stop(this.audioCtx.currentTime + 0.035);
+                } catch(e){}
+            }
+
+            playFlip() {
+                if (!this.enabled) return;
+                try {
+                    this.init();
+                    const osc = this.audioCtx.createOscillator();
+                    const gain = this.audioCtx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(280, this.audioCtx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(750, this.audioCtx.currentTime + 0.28);
+                    
+                    gain.gain.setValueAtTime(0.2, this.audioCtx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0.01, this.audioCtx.currentTime + 0.28);
+                    
+                    osc.connect(gain);
+                    gain.connect(this.audioCtx.destination);
+                    osc.start();
+                    osc.stop(this.audioCtx.currentTime + 0.28);
+                } catch(e){}
+            }
+
+            playFanfare() {
+                if (!this.enabled) return;
+                try {
+                    this.init();
+                    const notes = [
+                        { f: 523.25, d: 0.12 }, // C5
+                        { f: 659.25, d: 0.12 }, // E5
+                        { f: 783.99, d: 0.14 }, // G5
+                        { f: 1046.50, d: 0.38 } // C6
+                    ];
+                    let startTime = this.audioCtx.currentTime + 0.05;
+
+                    notes.forEach((note) => {
+                        const osc = this.audioCtx.createOscillator();
+                        const gain = this.audioCtx.createGain();
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(note.f, startTime);
+
+                        gain.gain.setValueAtTime(0, startTime);
+                        gain.gain.linearRampToValueAtTime(0.26, startTime + 0.02);
+                        gain.gain.exponentialRampToValueAtTime(0.001, startTime + note.d);
+
+                        osc.connect(gain);
+                        gain.connect(this.audioCtx.destination);
+                        osc.start(startTime);
+                        osc.stop(startTime + note.d);
+
+                        startTime += note.d * 0.9;
+                    });
+                } catch(e){}
+            }
         }
 
-        // Đặt lại game
-        function resetGame() {
-            if (isAnimating) return;
-            eliminatedCards.clear();
-            currentChosenIndex = null;
-            currentBaseAngle = 0;
+        const sound = new SoundEngine();
 
-            document.querySelectorAll('.card-wrapper').forEach(el => {
-                el.className = 'card-wrapper';
-                el.style.opacity = 1;
-            });
+        /* ==========================================================================
+           DATA & DEFAULT REWARDS (Thú Cưng 3D Đáng Yêu)
+           ========================================================================== */
+        const DEFAULT_REWARDS = [
+            { id: 1, title: 'Cộng 1 Điểm 10 Ưu Tú', animal: 'cat', desc: 'Thưởng 1 điểm 10 vào sổ theo dõi thi đua!', gradient: 'from-amber-400 to-orange-600' },
+            { id: 2, title: 'Vé Miễn Bài Tập Về Nhà', animal: 'corgi', desc: 'Được miễn 1 buổi bài tập môn em yêu thích!', gradient: 'from-pink-500 to-rose-600' },
+            { id: 3, title: 'Hộp Dụng Cụ Dễ Thương', animal: 'panda', desc: 'Nhận phần quà đồ dùng học tập xinh xắn!', gradient: 'from-blue-500 to-indigo-600' },
+            { id: 4, title: 'Thanh Chocolate Năng Lượng', animal: 'bunny', desc: 'Tiếp thêm năng lượng ngọt ngào giờ ra chơi!', gradient: 'from-emerald-400 to-teal-600' },
+            { id: 5, title: 'Lớp Trưởng Quyền Lực (1 Tiết)', animal: 'lion', desc: 'Điều phối hoạt động vui nhộn của lớp!', gradient: 'from-purple-500 to-indigo-700' },
+            { id: 6, title: 'Phiếu Trà Sữa Thơm Ngon', animal: 'fox', desc: 'Một ly trà sữa trân châu mát lạnh ngọt ngào!', gradient: 'from-amber-500 to-yellow-600' },
+            { id: 7, title: 'Thêm 1 Lượt Quay May Mắn', animal: 'duck', desc: 'Được quay thêm một lượt nữa ngay lập tức!', gradient: 'from-cyan-400 to-blue-500' },
+            { id: 8, title: 'Cuốn Sách Tri Thức Bổ Ích', animal: 'dino', desc: 'Mở rộng thế giới với những điều kỳ thú!', gradient: 'from-red-500 to-rose-700' }
+        ];
 
-            updateCardsOnEllipse(currentBaseAngle);
-            startShuffleAndAutoPick();
+        const SAMPLE_NAMES = [
+            'Nguyễn Minh Anh', 'Trần Tuấn Kiệt', 'Lê Bảo Châu', 'Phạm Hoàng Nam',
+            'Vũ Quỳnh Trang', 'Đặng Gia Huy', 'Bùi Khánh Linh', 'Hồ Đức Trí'
+        ];
+
+        let rewards = JSON.parse(localStorage.getItem('student_rewards_data_v2')) || [...DEFAULT_REWARDS];
+        let history = JSON.parse(localStorage.getItem('student_rewards_history_v2')) || [];
+
+        /* ==========================================================================
+           ELLIPTICAL 3D CAROUSEL LOGIC
+           ========================================================================== */
+        const track = document.getElementById('carouselTrack');
+        let cardElements = [];
+        let currentAngle = 0;
+        let isSpinning = false;
+        let lastTickAngle = 0;
+
+        let radiusX = 350;
+        let radiusZ = 190;
+
+        function updateDimensions() {
+            const w = window.innerWidth;
+            if (w < 640) {
+                radiusX = 165;
+                radiusZ = 95;
+            } else if (w < 1024) {
+                radiusX = 265;
+                radiusZ = 145;
+            } else {
+                radiusX = 365;
+                radiusZ = 200;
+            }
+            renderCardsPosition();
         }
 
-        // ================= CÀI ĐẶT PHẦN THƯỞNG =================
-        function openConfigModal() {
-            const listContainer = document.getElementById('configList');
-            listContainer.innerHTML = '';
+        window.addEventListener('resize', updateDimensions);
 
-            rewards.forEach((item, idx) => {
-                const row = document.createElement('div');
-                row.className = 'config-item';
-                row.innerHTML = `
-                    <input type="text" class="icon-input" id="cfg-icon-${idx}" value="${item.icon}" maxlength="3">
-                    <input type="text" class="text-input" id="cfg-text-${idx}" value="${item.text}">
+        function getAnimalDisplayMarkup(item) {
+            if (item.customImage) {
+                return `<img src="${item.customImage}" class="w-full h-full object-contain filter drop-shadow-xl" alt="Pet"/>`;
+            }
+            return ANIMAL_SVGS[item.animal] || ANIMAL_SVGS.cat;
+        }
+
+        // Khởi tạo DOM Thẻ Bài (Đảm bảo chữ không bao giờ bị ngược)
+        function initCardsDOM() {
+            track.innerHTML = '';
+            cardElements = [];
+
+            rewards.forEach((item, index) => {
+                const card = document.createElement('div');
+                card.className = 'card-3d';
+                card.dataset.index = index;
+
+                // Thú cưng nằm bên ngoài thẻ (animal-outside với translateZ và top âm)
+                card.innerHTML = `
+                    <!-- CON VẬT 3D NHÔ HẲN RA NGOÀI KHUNG THẺ -->
+                    <div class="animal-outside anim-animal">
+                        ${getAnimalDisplayMarkup(item)}
+                    </div>
+
+                    <div class="card-inner">
+                        <!-- MẶT SAU (Thẻ úp khi quay): Chữ viết từ TRÁI SANG PHẢI xuôi chiều chuẩn -->
+                        <div class="card-face card-back text-white">
+                            <div class="holo-overlay"></div>
+                            <div class="flex items-center justify-between w-full pt-12">
+                                <span class="text-[11px] font-black tracking-widest text-amber-300">★ THẺ MAY MẮN ★</span>
+                                <i class="fa-solid fa-sparkles text-amber-300 text-xs"></i>
+                            </div>
+
+                            <div class="my-auto flex flex-col items-center text-center">
+                                <div class="px-3 py-1 rounded-full bg-white/10 border border-white/20 text-xs font-black tracking-wider text-pink-200 mb-1">
+                                    BÍ MẬT QUÀ TẶNG
+                                </div>
+                                <h4 class="font-extrabold text-sm sm:text-base tracking-wide text-white drop-shadow">
+                                    HỌC SINH TÍCH CỰC
+                                </h4>
+                                <span class="text-[10px] text-purple-200 mt-1">Chạm để chọn thẻ</span>
+                            </div>
+
+                            <div class="w-full flex justify-between items-center text-[10px] text-amber-300 font-mono font-bold pb-1">
+                                <span>THẺ NO.${String(index + 1).padStart(2, '0')}</span>
+                                <span>★ ★ ★</span>
+                            </div>
+                        </div>
+
+                        <!-- MẶT TRƯỚC (Lật mở khi trúng thưởng): Chữ viết chuẩn từ TRÁI SANG PHẢI khi rotateY(180deg) -->
+                        <div class="card-face card-front bg-gradient-to-br ${item.gradient} text-white">
+                            <div class="holo-overlay"></div>
+                            <div class="text-[10px] font-black uppercase tracking-wider bg-black/25 px-2.5 py-0.5 rounded-full w-full text-center mt-12">
+                                Phần Quà Đã Mở
+                            </div>
+
+                            <div class="text-center w-full my-auto px-1">
+                                <h4 class="font-black text-sm sm:text-base leading-tight drop-shadow mb-1 text-white">
+                                    ${escapeHTML(item.title)}
+                                </h4>
+                                <p class="text-[10px] text-yellow-100 line-clamp-2 leading-tight opacity-95">
+                                    ${escapeHTML(item.desc || 'Chúc mừng em nhé!')}
+                                </p>
+                            </div>
+
+                            <div class="w-full text-center pb-1">
+                                <span class="text-[10px] bg-white/20 px-2 py-0.5 rounded-full font-bold">Xứng Đáng 10 Điểm</span>
+                            </div>
+                        </div>
+                    </div>
                 `;
-                listContainer.appendChild(row);
+
+                // Nhấp vào thẻ để xoay về chính diện
+                card.addEventListener('click', () => {
+                    if (isSpinning) return;
+                    sound.init();
+                    rotateToCardIndex(index);
+                });
+
+                track.appendChild(card);
+                cardElements.push(card);
             });
 
-            document.getElementById('configModal').classList.add('active');
+            renderCardsPosition();
         }
 
-        function closeConfigModal() {
-            document.getElementById('configModal').classList.remove('active');
-        }
+        // Render vị trí Elip 3D (X = Rx * sin(theta), Z = Rz * cos(theta))
+        function renderCardsPosition() {
+            const count = rewards.length;
+            if (count === 0) return;
 
-        function saveConfig() {
-            rewards.forEach((_, idx) => {
-                const iconVal = document.getElementById(`cfg-icon-${idx}`).value.trim();
-                const textVal = document.getElementById(`cfg-text-${idx}`).value.trim();
-                rewards[idx] = {
-                    icon: iconVal || "🎁",
-                    text: textVal || `Phần thưởng ${idx + 1}`
-                };
+            const angleStep = (Math.PI * 2) / count;
+
+            cardElements.forEach((card, i) => {
+                const theta = currentAngle + (i * angleStep);
+                
+                const x = Math.sin(theta) * radiusX;
+                const z = Math.cos(theta) * radiusZ;
+
+                const normZ = (z + radiusZ) / (radiusZ * 2); // 0 (xa nhất) -> 1 (gần nhất)
+                
+                const scale = 0.68 + normZ * 0.42;
+                const opacity = 0.38 + normZ * 0.62;
+                const zIndex = Math.round(normZ * 100);
+
+                // Giữ góc nghiêng nhẹ vừa phải để chữ luôn rõ nét, không bị đảo lộn
+                const rotateY = - (Math.sin(theta) * 22);
+
+                card.style.transform = `translate3d(${x}px, 0px, ${z}px) scale(${scale}) rotateY(${rotateY}deg)`;
+                card.style.opacity = opacity;
+                card.style.zIndex = zIndex;
+
+                const isFrontCenter = normZ > 0.94;
+                if (isFrontCenter) {
+                    card.classList.add('ring-4', 'ring-amber-400', 'ring-offset-2', 'ring-offset-slate-900', 'active-focus');
+                } else {
+                    card.classList.remove('ring-4', 'ring-amber-400', 'ring-offset-2', 'ring-offset-slate-900', 'active-focus');
+                }
             });
 
-            localStorage.setItem('classroom_rewards', JSON.stringify(rewards));
-            closeConfigModal();
-            initCards();
-            resetGame();
+            // Âm thanh tick khi thẻ trôi qua vị trí tâm
+            const delta = Math.abs(currentAngle - lastTickAngle);
+            if (delta >= (Math.PI * 2) / count) {
+                sound.playTick();
+                lastTickAngle = currentAngle;
+            }
         }
 
-        window.addEventListener('resize', () => {
-            if (!isAnimating) {
-                updateCardsOnEllipse(currentBaseAngle);
+        function rotateToCardIndex(targetIndex) {
+            const count = rewards.length;
+            const angleStep = (Math.PI * 2) / count;
+            
+            const currentMod = currentAngle % (Math.PI * 2);
+            let diff = - (targetIndex * angleStep) - currentMod;
+
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+
+            const startAngle = currentAngle;
+            const endAngle = currentAngle + diff;
+            const duration = 600;
+            const startTime = performance.now();
+
+            function anim(now) {
+                const elapsed = now - startTime;
+                const p = Math.min(elapsed / duration, 1);
+                const ease = 1 - Math.pow(1 - p, 3);
+                currentAngle = startAngle + (endAngle - startAngle) * ease;
+                renderCardsPosition();
+
+                if (p < 1) {
+                    requestAnimationFrame(anim);
+                }
+            }
+            requestAnimationFrame(anim);
+        }
+
+        /* ==========================================================================
+           BẮT ĐẦU QUAY THƯỞNG (SPIN LOGIC)
+           ========================================================================== */
+        const spinBtn = document.getElementById('spinBtn');
+
+        function startSpin() {
+            if (isSpinning || rewards.length === 0) return;
+            sound.init();
+
+            isSpinning = true;
+            spinBtn.disabled = true;
+            spinBtn.classList.add('opacity-70', 'cursor-not-allowed');
+
+            const count = rewards.length;
+            const winningIndex = Math.floor(Math.random() * count);
+            const angleStep = (Math.PI * 2) / count;
+
+            const extraRounds = (4 + Math.floor(Math.random() * 3)) * (Math.PI * 2);
+            const targetMod = (Math.PI * 2) - (winningIndex * angleStep);
+            const currentMod = ((currentAngle % (Math.PI * 2)) + (Math.PI * 2)) % (Math.PI * 2);
+            let distance = targetMod - currentMod;
+            if (distance < 0) distance += Math.PI * 2;
+
+            const totalRotation = extraRounds + distance;
+            const startAngle = currentAngle;
+            const finalAngle = currentAngle + totalRotation;
+            const duration = 5200;
+            const startTime = performance.now();
+
+            function animateSpin(now) {
+                const elapsed = now - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                // Quintic Ease Out hãm phanh mượt
+                const ease = 1 - Math.pow(1 - progress, 4);
+
+                currentAngle = startAngle + totalRotation * ease;
+                renderCardsPosition();
+
+                if (progress < 1) {
+                    requestAnimationFrame(animateSpin);
+                } else {
+                    currentAngle = finalAngle;
+                    renderCardsPosition();
+                    isSpinning = false;
+                    spinBtn.disabled = false;
+                    spinBtn.classList.remove('opacity-70', 'cursor-not-allowed');
+                    
+                    triggerRewardReveal(winningIndex);
+                }
+            }
+
+            requestAnimationFrame(animateSpin);
+        }
+
+        spinBtn.addEventListener('click', startSpin);
+
+        // Phím Space để bắt đầu quay
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && !isSpinning && document.activeElement.tagName !== 'INPUT') {
+                e.preventDefault();
+                startSpin();
             }
         });
 
-        // Khởi tạo
-        initCards();
+        /* ==========================================================================
+           TOUCH & MOUSE DRAG
+           ========================================================================== */
+        let isDragging = false;
+        let startX = 0;
+        let lastX = 0;
+        let dragVelocity = 0;
+
+        function onPointerDown(e) {
+            if (isSpinning) return;
+            isDragging = true;
+            startX = e.clientX || (e.touches && e.touches[0].clientX);
+            lastX = startX;
+            dragVelocity = 0;
+        }
+
+        function onPointerMove(e) {
+            if (!isDragging || isSpinning) return;
+            const currentX = e.clientX || (e.touches && e.touches[0].clientX);
+            const deltaX = currentX - lastX;
+            lastX = currentX;
+
+            currentAngle += deltaX * 0.0055;
+            dragVelocity = deltaX * 0.0055;
+            renderCardsPosition();
+        }
+
+        function onPointerUp() {
+            if (!isDragging) return;
+            isDragging = false;
+            
+            if (Math.abs(dragVelocity) > 0.002) {
+                let momentum = dragVelocity;
+                function coast() {
+                    if (isDragging || isSpinning) return;
+                    momentum *= 0.92;
+                    currentAngle += momentum;
+                    renderCardsPosition();
+                    if (Math.abs(momentum) > 0.0005) {
+                        requestAnimationFrame(coast);
+                    }
+                }
+                requestAnimationFrame(coast);
+            }
+        }
+
+        track.addEventListener('mousedown', onPointerDown);
+        window.addEventListener('mousemove', onPointerMove);
+        window.addEventListener('mouseup', onPointerUp);
+
+        track.addEventListener('touchstart', onPointerDown, { passive: true });
+        window.addEventListener('touchmove', onPointerMove, { passive: true });
+        window.addEventListener('touchend', onPointerUp);
+
+        /* ==========================================================================
+           MODAL REWARD REVEAL & WINNER CELEBRATION
+           ========================================================================== */
+        const rewardModal = document.getElementById('rewardModal');
+        const rewardModalContent = document.getElementById('rewardModalContent');
+        const modalFlipCard = document.getElementById('modalFlipCard');
+        const modalCardFront = document.getElementById('modalCardFront');
+        const modalAnimalContainer = document.getElementById('modalAnimalContainer');
+        const modalRewardTitle = document.getElementById('modalRewardTitle');
+        const modalRewardDesc = document.getElementById('modalRewardDesc');
+        const winnerStudentName = document.getElementById('winnerStudentName');
+        const studentNameInput = document.getElementById('studentNameInput');
+        let currentWinningItem = null;
+
+        function triggerRewardReveal(rewardIndex) {
+            const reward = rewards[rewardIndex];
+            currentWinningItem = reward;
+
+            const studentName = studentNameInput.value.trim() || 'Học Sinh Chăm Ngoan';
+            winnerStudentName.innerHTML = `<i class="fa-solid fa-star text-amber-400 mr-1.5"></i> ${escapeHTML(studentName)}`;
+
+            modalRewardTitle.textContent = reward.title;
+            modalRewardDesc.textContent = reward.desc || 'Thầy cô và các bạn chúc mừng em!';
+
+            // Render con vật 3D nhô ra ngoài trên Modal
+            modalAnimalContainer.innerHTML = getAnimalDisplayMarkup(reward);
+
+            modalCardFront.className = `absolute inset-0 rounded-3xl p-5 flex flex-col items-center justify-between text-white border-4 border-amber-300 bg-gradient-to-br ${reward.gradient} shadow-2xl`;
+
+            modalFlipCard.style.transform = 'rotateY(0deg)';
+
+            rewardModal.classList.remove('hidden');
+            setTimeout(() => {
+                rewardModal.classList.remove('opacity-0');
+                rewardModalContent.classList.remove('scale-90');
+                rewardModalContent.classList.add('scale-100');
+            }, 15);
+
+            // Lật mở bài
+            setTimeout(() => {
+                sound.playFlip();
+                modalFlipCard.style.transform = 'rotateY(180deg)';
+            }, 450);
+
+            // Pháo hoa và âm thanh chúc mừng
+            setTimeout(() => {
+                sound.playFanfare();
+                fireConfettiCelebration();
+            }, 950);
+        }
+
+        function closeRewardModal() {
+            rewardModal.classList.add('opacity-0');
+            rewardModalContent.classList.remove('scale-100');
+            rewardModalContent.classList.add('scale-90');
+            setTimeout(() => {
+                rewardModal.classList.add('hidden');
+            }, 300);
+        }
+
+        document.getElementById('closeRewardModalBtn').addEventListener('click', closeRewardModal);
+        
+        document.getElementById('saveHistoryBtn').addEventListener('click', () => {
+            if (currentWinningItem) {
+                const sName = studentNameInput.value.trim() || 'Học Sinh Chăm Ngoan';
+                const timeStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+                
+                history.unshift({
+                    student: sName,
+                    reward: currentWinningItem.title,
+                    animal: currentWinningItem.animal || 'cat',
+                    time: timeStr,
+                    id: Date.now()
+                });
+
+                localStorage.setItem('student_rewards_history_v2', JSON.stringify(history));
+                updateHistoryBadge();
+                showToast(`Đã ghi nhận phần thưởng cho ${sName}!`);
+            }
+            closeRewardModal();
+            studentNameInput.value = '';
+            studentNameInput.focus();
+        });
+
+        function fireConfettiCelebration() {
+            const count = 220;
+            const defaults = { origin: { y: 0.68 } };
+
+            function fire(particleRatio, opts) {
+                confetti(Object.assign({}, defaults, opts, {
+                    particleCount: Math.floor(count * particleRatio)
+                }));
+            }
+
+            fire(0.25, { spread: 26, startVelocity: 55 });
+            fire(0.2, { spread: 60 });
+            fire(0.35, { spread: 100, decay: 0.91, scalar: 0.8 });
+            fire(0.1, { spread: 120, startVelocity: 25, decay: 0.92, scalar: 1.2 });
+            fire(0.1, { spread: 120, startVelocity: 45 });
+        }
+
+        /* ==========================================================================
+           CÀI ĐẶT THẺ & PHẦN THƯỞNG (Reward Management)
+           ========================================================================== */
+        const manageModal = document.getElementById('manageModal');
+        const manageBtn = document.getElementById('manageBtn');
+        const closeManageModalBtn = document.getElementById('closeManageModalBtn');
+        const rewardListContainer = document.getElementById('rewardListContainer');
+        const addRewardForm = document.getElementById('addRewardForm');
+        const resetDefaultsBtn = document.getElementById('resetDefaultsBtn');
+        const customImageInput = document.getElementById('customImageInput');
+        const customImageText = document.getElementById('customImageText');
+        let uploadedCustomImage = null;
+
+        customImageInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    uploadedCustomImage = event.target.result;
+                    customImageText.textContent = 'Đã chọn ảnh!';
+                    showToast('Đã nhận diện ảnh tải lên!');
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        function renderRewardList() {
+            rewardListContainer.innerHTML = '';
+            rewards.forEach((r, idx) => {
+                const row = document.createElement('div');
+                row.className = 'flex items-center justify-between p-2.5 bg-slate-800/90 rounded-2xl border border-slate-700/80 hover:border-purple-400/50 transition';
+                
+                const previewThumb = r.customImage ? 
+                    `<img src="${r.customImage}" class="w-9 h-9 rounded-lg object-cover">` : 
+                    `<div class="w-9 h-9 rounded-lg overflow-hidden bg-slate-900 flex items-center justify-center p-0.5">${ANIMAL_SVGS[r.animal] || ANIMAL_SVGS.cat}</div>`;
+
+                row.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        ${previewThumb}
+                        <div>
+                            <span class="font-extrabold text-sm text-white block">${escapeHTML(r.title)}</span>
+                            <span class="text-xs text-slate-400 block">${escapeHTML(r.desc || 'Chúc mừng học sinh')}</span>
+                        </div>
+                    </div>
+                    <button class="delete-btn text-slate-400 hover:text-red-400 p-2 transition text-sm" data-index="${idx}" title="Xóa thẻ">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                `;
+                rewardListContainer.appendChild(row);
+            });
+
+            rewardListContainer.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const i = parseInt(btn.dataset.index);
+                    if (rewards.length <= 3) {
+                        showToast('Cần giữ tối thiểu 3 thẻ để vòng quay elip hoạt động!');
+                        return;
+                    }
+                    rewards.splice(i, 1);
+                    saveAndRefreshRewards();
+                });
+            });
+        }
+
+        function saveAndRefreshRewards() {
+            localStorage.setItem('student_rewards_data_v2', JSON.stringify(rewards));
+            renderRewardList();
+            initCardsDOM();
+        }
+
+        manageBtn.addEventListener('click', () => {
+            renderRewardList();
+            manageModal.classList.remove('hidden');
+            setTimeout(() => manageModal.classList.remove('opacity-0'), 15);
+        });
+
+        closeManageModalBtn.addEventListener('click', () => {
+            manageModal.classList.add('opacity-0');
+            setTimeout(() => manageModal.classList.add('hidden'), 300);
+        });
+
+        addRewardForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const title = document.getElementById('newRewardTitle').value.trim();
+            const desc = document.getElementById('newRewardDesc').value.trim();
+            const animal = document.getElementById('newRewardAnimal').value;
+            const gradient = document.getElementById('newRewardColor').value;
+
+            if (!title) return;
+
+            rewards.push({
+                id: Date.now(),
+                title: title,
+                desc: desc || 'Phần thưởng chăm ngoan',
+                animal: animal,
+                gradient: gradient,
+                customImage: uploadedCustomImage
+            });
+
+            saveAndRefreshRewards();
+            document.getElementById('newRewardTitle').value = '';
+            document.getElementById('newRewardDesc').value = '';
+            uploadedCustomImage = null;
+            customImageText.textContent = 'Tải ảnh riêng';
+            showToast('Đã thêm thẻ mới vào vòng quay!');
+        });
+
+        resetDefaultsBtn.addEventListener('click', () => {
+            rewards = [...DEFAULT_REWARDS];
+            saveAndRefreshRewards();
+            showToast('Đã khôi phục các thẻ mặc định');
+        });
+
+        /* ==========================================================================
+           BẢNG VINH DANH HỌC SINH (Recognition History)
+           ========================================================================== */
+        const historyBtn = document.getElementById('historyBtn');
+        const historyModal = document.getElementById('historyModal');
+        const closeHistoryModalBtn = document.getElementById('closeHistoryModalBtn');
+        const historyListContainer = document.getElementById('historyListContainer');
+        const historyBadge = document.getElementById('historyBadge');
+        const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+        const copyHistoryBtn = document.getElementById('copyHistoryBtn');
+
+        function updateHistoryBadge() {
+            historyBadge.textContent = history.length;
+        }
+
+        function renderHistoryList() {
+            if (history.length === 0) {
+                historyListContainer.innerHTML = '<p class="text-slate-500 text-center py-8 text-sm">Chưa có lượt nhận thưởng nào. Hãy bấm BẮT ĐẦU!</p>';
+                return;
+            }
+
+            historyListContainer.innerHTML = '';
+            history.forEach((item, index) => {
+                const el = document.createElement('div');
+                el.className = 'flex items-center justify-between p-3 bg-slate-800/80 rounded-2xl border border-slate-700/60';
+                el.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <span class="w-7 h-7 rounded-full bg-amber-400/20 text-amber-300 font-black text-xs flex items-center justify-center">${index + 1}</span>
+                        <div>
+                            <span class="font-extrabold text-white text-sm block">${escapeHTML(item.student)}</span>
+                            <span class="text-xs text-purple-300 font-bold">${escapeHTML(item.reward)}</span>
+                        </div>
+                    </div>
+                    <span class="text-xs text-slate-400 font-mono">${item.time}</span>
+                `;
+                historyListContainer.appendChild(el);
+            });
+        }
+
+        historyBtn.addEventListener('click', () => {
+            renderHistoryList();
+            historyModal.classList.remove('hidden');
+            setTimeout(() => historyModal.classList.remove('opacity-0'), 15);
+        });
+
+        closeHistoryModalBtn.addEventListener('click', () => {
+            historyModal.classList.add('opacity-0');
+            setTimeout(() => historyModal.classList.add('hidden'), 300);
+        });
+
+        clearHistoryBtn.addEventListener('click', () => {
+            history = [];
+            localStorage.setItem('student_rewards_history_v2', JSON.stringify(history));
+            updateHistoryBadge();
+            renderHistoryList();
+            showToast('Đã xóa danh sách vinh danh');
+        });
+
+        copyHistoryBtn.addEventListener('click', () => {
+            if (history.length === 0) {
+                showToast('Chưa có danh sách để sao chép!');
+                return;
+            }
+            const text = history.map((h, i) => `${i + 1}. ${h.student} - ${h.reward} (${h.time})`).join('\n');
+            const dummy = document.createElement('textarea');
+            dummy.value = text;
+            document.body.appendChild(dummy);
+            dummy.select();
+            document.execCommand('copy');
+            document.body.removeChild(dummy);
+            showToast('Đã sao chép bảng vinh danh vào bộ nhớ tạm!');
+        });
+
+        /* ==========================================================================
+           UTILITIES (Gợi ý tên, Âm thanh, Toàn màn hình)
+           ========================================================================== */
+        document.getElementById('randomStudentBtn').addEventListener('click', () => {
+            const rand = SAMPLE_NAMES[Math.floor(Math.random() * SAMPLE_NAMES.length)];
+            studentNameInput.value = rand;
+            showToast(`Đã chọn học sinh mẫu: ${rand}`);
+        });
+
+        const soundBtn = document.getElementById('soundBtn');
+        const soundIcon = document.getElementById('soundIcon');
+        const soundText = document.getElementById('soundText');
+
+        soundBtn.addEventListener('click', () => {
+            sound.enabled = !sound.enabled;
+            if (sound.enabled) {
+                soundIcon.className = 'fa-solid fa-volume-high text-amber-400';
+                soundText.textContent = 'Bật';
+                showToast('Âm thanh đã bật');
+            } else {
+                soundIcon.className = 'fa-solid fa-volume-xmark text-slate-400';
+                soundText.textContent = 'Tắt';
+                showToast('Âm thanh đã tắt');
+            }
+        });
+
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
+        fullscreenBtn.addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {});
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        });
+
+        let toastTimeout;
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toastMsg');
+            toastMsg.textContent = msg;
+            toast.classList.remove('opacity-0', 'translate-y-20');
+            toast.classList.add('opacity-100', 'translate-y-0');
+
+            clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => {
+                toast.classList.remove('opacity-100', 'translate-y-0');
+                toast.classList.add('opacity-0', 'translate-y-20');
+            }, 2600);
+        }
+
+        function escapeHTML(str) {
+            return String(str).replace(/[&<>'"]/g, 
+                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+            );
+        }
+
+        /* ==========================================================================
+           INITIALIZATION
+           ========================================================================== */
+        window.onload = function() {
+            updateDimensions();
+            initCardsDOM();
+            updateHistoryBadge();
+        };
     </script>
 </body>
 </html>
